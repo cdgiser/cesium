@@ -13,8 +13,9 @@ define([
     '../Core/loadImageFromTypedArray',
     '../Core/Math',
     '../Core/Rectangle',
+    '../Core/Request',
+    '../Core/RequestType',
     '../Core/RuntimeError',
-    '../Core/throttleRequestByServer',
     '../Core/TileProviderError',
     '../ThirdParty/protobuf-minimal',
     '../ThirdParty/when'
@@ -32,8 +33,9 @@ define([
     loadImageFromTypedArray,
     CesiumMath,
     Rectangle,
+    Request,
+    RequestType,
     RuntimeError,
-    throttleRequestByServer,
     TileProviderError,
     protobuf,
     when) {
@@ -427,6 +429,7 @@ define([
      * @param {Number} x The tile X coordinate.
      * @param {Number} y The tile Y coordinate.
      * @param {Number} level The tile level.
+     * @param {Request} [request] The request object.
      * @returns {Promise.<Image|Canvas>|undefined} A promise for the image that will resolve when the image is available, or
      *          undefined if there are too many active requests to the server, and the request
      *          should be retried later.  The resolved image may be either an
@@ -434,7 +437,7 @@ define([
      *
      * @exception {DeveloperError} <code>requestImage</code> must not be called before the imagery provider is ready.
      */
-    GoogleEarthEnterpriseImageryProvider.prototype.requestImage = function(x, y, level) {
+    GoogleEarthEnterpriseImageryProvider.prototype.requestImage = function(x, y, level, request) {
         //>>includeStart('debug', pragmas.debug);
         if (!this._ready) {
             throw new DeveloperError('requestImage must not be called before the imagery provider is ready.');
@@ -447,7 +450,13 @@ define([
         var info = metadata.getTileInformation(x, y, level);
         if (!defined(info)) {
             if (metadata.isValid(quadKey)) {
-                metadata.populateSubtree(x, y, level);
+                var metadataRequest = new Request({
+                    throttle : request.throttle,
+                    throttleByServer : request.throttleByServer,
+                    type : request.type,
+                    distance : request.distance
+                });
+                metadata.populateSubtree(x, y, level, metadataRequest);
                 return undefined; // No metadata so return undefined so we can be loaded later
             } else {
                 return invalidImage; // Image doesn't exist
@@ -460,9 +469,9 @@ define([
         }
         // Load the
         var url = buildImageUrl(this, info, x, y, level);
-        var promise = throttleRequestByServer(url, loadArrayBuffer);
+        var promise = loadArrayBuffer(url, undefined, request);
         if (!defined(promise)) {
-            return undefined; //Throttled
+            return undefined; // Throttled
         }
 
         return promise
