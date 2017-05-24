@@ -26,10 +26,10 @@ define([
      *
      * @exports loadCRN
      *
-     * @param {String|Promise.<String>|ArrayBuffer} urlOrBuffer The URL of the binary data, a promise for the URL, or an ArrayBuffer.
+     * @param {String|ArrayBuffer} urlOrBuffer The URL of the binary data or an ArrayBuffer.
      * @param {Object} [headers] HTTP headers to send with the requests.
      * @param {Request} [request] The request object.
-     * @returns {Promise.<CompressedTextureBuffer>} A promise that will resolve to the requested data when loaded.
+     * @returns {Promise.<CompressedTextureBuffer>|undefined} A promise that will resolve to the requested data when loaded. Returns <code>undefined</code> if <code>request.throttle</code> is <code>true</code> and the request does not have high enough priority.
      *
      * @exception {RuntimeError} Unsupported compressed format.
      *
@@ -61,6 +61,10 @@ define([
             loadPromise = when.resolve(urlOrBuffer);
         } else {
             loadPromise = loadArrayBuffer(urlOrBuffer, headers, request);
+        }
+
+        if (!defined(loadPromise)) {
+            return undefined;
         }
 
         return loadPromise.then(function(data) {

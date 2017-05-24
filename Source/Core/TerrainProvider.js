@@ -21,6 +21,7 @@ define([
      *
      * @see EllipsoidTerrainProvider
      * @see CesiumTerrainProvider
+     * @see VRTheWorldTerrainProvider
      */
     function TerrainProvider() {
         DeveloperError.throwInstantiationError();

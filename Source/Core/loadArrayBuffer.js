@@ -13,10 +13,10 @@ define([
      *
      * @exports loadArrayBuffer
      *
-     * @param {String|Promise.<String>} url The URL of the binary data, or a promise for the URL.
+     * @param {String} url The URL of the binary data.
      * @param {Object} [headers] HTTP headers to send with the requests.
      * @param {Request} [request] The request object.
-     * @returns {Promise.<ArrayBuffer>} a promise that will resolve to the requested data when loaded.
+     * @returns {Promise.<ArrayBuffer>|undefined} a promise that will resolve to the requested data when loaded. Returns <code>undefined</code> if <code>request.throttle</code> is <code>true</code> and the request does not have high enough priority.
      *
      *
      * @example

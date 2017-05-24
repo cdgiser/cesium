@@ -34,7 +34,7 @@ define([
      * @param {String} [options.callbackParameterName='callback'] The callback parameter name that the server expects.
      * @param {Proxy} [options.proxy] A proxy to use for the request. This object is expected to have a getURL function which returns the proxied URL, if needed.
      * @param {Request} [request] The request object.
-     * @returns {Promise.<Object>} a promise that will resolve to the requested data when loaded.
+     * @returns {Promise.<Object>|undefined} a promise that will resolve to the requested data when loaded. Returns <code>undefined</code> if <code>request.throttle</code> is <code>true</code> and the request does not have high enough priority.
      *
      *
      * @example

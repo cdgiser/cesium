@@ -1,11 +1,13 @@
 /*global define*/
 define([
         '../ThirdParty/when',
+        './defined',
         './isDataUri',
         './loadBlob',
         './loadImage'
     ], function(
         when,
+        defined,
         isDataUri,
         loadBlob,
         loadImage) {
@@ -25,9 +27,9 @@ define([
      *
      * @exports loadImageViaBlob
      *
-     * @param {String|Promise.<String>} url The source of the image, or a promise for the URL.
+     * @param {String} url The source URL of the image.
      * @param {Request} [request] The request object.
-     * @returns {Promise.<Image>} a promise that will resolve to the requested data when loaded.
+     * @returns {Promise.<Image>|undefined} a promise that will resolve to the requested data when loaded. Returns <code>undefined</code> if <code>request.throttle</code> is <code>true</code> and the request does not have high enough priority.
      *
      *
      * @example
@@ -52,7 +54,12 @@ define([
             return loadImage(url, undefined, request);
         }
 
-        return loadBlob(url, undefined, request).then(function(blob) {
+        var blobPromise = loadBlob(url, undefined, request);
+        if (!defined(blobPromise)) {
+            return undefined;
+        }
+
+        return blobPromise.then(function(blob) {
             var blobUrl = window.URL.createObjectURL(blob);
 
             return loadImage(blobUrl, false).then(function(image) {

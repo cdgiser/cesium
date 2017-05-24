@@ -98,6 +98,11 @@ define([
             requestTileGeometry(this, terrainProvider, x, y, level, distance);
         }
 
+        if (defined(this.request) && this.request.state === RequestState.ISSUED) {
+            // Update distance while loading to prioritize request
+            this.request.distance = distance;
+        }
+
         if (this.state === TerrainState.RECEIVED) {
             transform(this, frameState, terrainProvider, x, y, level);
         }
@@ -142,6 +147,7 @@ define([
             // Request the terrain from the terrain provider.
             var request = new Request({
                 throttle : true,
+                throttleByServer : true,
                 type : RequestType.TERRAIN,
                 distance : distance
             });

@@ -258,9 +258,11 @@ define([
             surfaceTile = tile.data = new GlobeSurfaceTile();
             // Create the TileBoundingRegion now in order to estimate the distance, which is used to prioritize the request.
             // Since the terrain isn't loaded yet, estimate the heights using its parent's values.
-            surfaceTile.tileBoundingRegion = createTileBoundingRegion(tile, frameState);
-            tile._distance = surfaceTile.tileBoundingRegion.distanceToCamera(frameState);
+            surfaceTile.tileBoundingRegion = createTileBoundingRegion(tile);
         }
+
+        // Update distance while the tile loads
+        tile._distance = surfaceTile.tileBoundingRegion.distanceToCamera(frameState);
 
         if (tile.state === QuadtreeTileLoadState.START) {
             prepareNewTile(tile, terrainProvider, imageryLayerCollection);

@@ -73,9 +73,9 @@ define([
             },
             set : function(value) {
                 this._maximumLength = value;
-                if (this._length > this._maximumLength && this._maximumLength > 0) {
-                    this._length = this._maximumLength;
-                    this._array.length = this._length;
+                if (this._length > value && value > 0) {
+                    this._length = value;
+                    this._array.length = value;
                 }
             }
         }

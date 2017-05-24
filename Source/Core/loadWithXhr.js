@@ -4,6 +4,7 @@ define([
         './Check',
         './defaultValue',
         './defined',
+        './deprecationWarning',
         './DeveloperError',
         './Request',
         './RequestErrorEvent',
@@ -15,6 +16,7 @@ define([
         Check,
         defaultValue,
         defined,
+        deprecationWarning,
         DeveloperError,
         Request,
         RequestErrorEvent,
@@ -32,14 +34,14 @@ define([
      * @exports loadWithXhr
      *
      * @param {Object} options Object with the following properties:
-     * @param {String|Promise.<String>} options.url The URL of the data, or a promise for the URL.
+     * @param {String} options.url The URL of the data.
      * @param {String} [options.responseType] The type of response.  This controls the type of item returned.
      * @param {String} [options.method='GET'] The HTTP method to use.
      * @param {String} [options.data] The data to send with the request, if any.
      * @param {Object} [options.headers] HTTP headers to send with the request, if any.
      * @param {String} [options.overrideMimeType] Overrides the MIME type returned by the server.
      * @param {Request} [options.request] The request object.
-     * @returns {Promise.<Object>} a promise that will resolve to the requested data when loaded.
+     * @returns {Promise.<Object>|undefined} a promise that will resolve to the requested data when loaded. Returns <code>undefined</code> if <code>request.throttle</code> is <code>true</code> and the request does not have high enough priority.
      *
      *
      * @example
@@ -67,21 +69,34 @@ define([
         Check.defined('options.url', options.url);
         //>>includeEnd('debug');
 
+        var url = options.url;
+
+        if (typeof url !== 'string') {
+            // Since this usage doesn't appear in the codebase, assume that options.request is also undefined and
+            // the request won't be throttled, meaning RequestScheduler.request will not return undefined.
+            deprecationWarning('url promise', 'options.url as a Promise is deprecated and will be removed in Cesium 1.36');
+            return url.then(function(url) {
+                return makeRequest(options, url);
+            });
+        }
+
+        return makeRequest(options);
+    }
+
+    function makeRequest(options, url) {
         var responseType = options.responseType;
         var method = defaultValue(options.method, 'GET');
         var data = options.data;
         var headers = options.headers;
         var overrideMimeType = options.overrideMimeType;
-        var url = options.url;
+        url = defaultValue(url, options.url);
 
         var request = defined(options.request) ? options.request : new Request();
         request.url = url;
         request.requestFunction = function() {
-            return when(url, function(url) {
-                var deferred = when.defer();
-                request._xhr = loadWithXhr.load(url, responseType, method, data, headers, deferred, overrideMimeType);
-                return deferred.promise;
-            });
+            var deferred = when.defer();
+            request._xhr = loadWithXhr.load(url, responseType, method, data, headers, deferred, overrideMimeType);
+            return deferred.promise;
         };
 
         return RequestScheduler.request(request);

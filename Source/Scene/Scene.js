@@ -2652,6 +2652,7 @@ define([
         }
 
         context.endFrame();
+        RequestScheduler.update();
         callAfterRenderFunctions(frameState);
 
         scene._postRender.raiseEvent(scene, time);
@@ -2820,7 +2821,6 @@ define([
 
         var object = this._pickFramebuffer.end(scratchRectangle);
         context.endFrame();
-        RequestScheduler.update();
         callAfterRenderFunctions(frameState);
         return object;
     };

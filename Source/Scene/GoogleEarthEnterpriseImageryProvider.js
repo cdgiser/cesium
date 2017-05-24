@@ -436,6 +436,7 @@ define([
             if (metadata.isValid(quadKey)) {
                 var metadataRequest = new Request({
                     throttle : request.throttle,
+                    throttleByServer : request.throttleByServer,
                     type : request.type,
                     distance : request.distance
                 });

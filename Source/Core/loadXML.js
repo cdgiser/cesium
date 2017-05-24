@@ -13,10 +13,10 @@ define([
      *
      * @exports loadXML
      *
-     * @param {String|Promise.<String>} url The URL to request, or a promise for the URL.
+     * @param {String} url The URL to request.
      * @param {Object} [headers] HTTP headers to send with the request.
      * @param {Request} [request] The request object.
-     * @returns {Promise.<XMLDocument>} a promise that will resolve to the requested data when loaded.
+     * @returns {Promise.<XMLDocument>|undefined} a promise that will resolve to the requested data when loaded. Returns <code>undefined</code> if <code>request.throttle</code> is <code>true</code> and the request does not have high enough priority.
      *
      *
      * @example

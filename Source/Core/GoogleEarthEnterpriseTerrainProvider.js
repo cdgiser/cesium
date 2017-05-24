@@ -5,6 +5,7 @@ define([
     './defaultValue',
     './defined',
     './defineProperties',
+    './deprecationWarning',
     './DeveloperError',
     './Event',
     './GeographicTilingScheme',
@@ -26,6 +27,7 @@ define([
     defaultValue,
     defined,
     defineProperties,
+    deprecationWarning,
     DeveloperError,
     Event,
     GeographicTilingScheme,
@@ -428,10 +430,11 @@ define([
         if (defined(terrainPromises[q])) { // Already being loaded possibly from another child, so return existing promise
             promise = terrainPromises[q];
         } else { // Create new request for terrain
-            // TODO - remove later, this handles the deprecated throttleRequests parameter
             if (typeof request === 'boolean') {
+                deprecationWarning('throttleRequests', 'The throttleRequest parameter for requestTileGeometry was deprecated in Cesium 1.35.  It will be removed in 1.36.');
                 request = new Request({
                     throttle : request,
+                    throttleByServer : request,
                     type : RequestType.TERRAIN
                 });
             }
@@ -554,6 +557,7 @@ define([
             // We will need this tile, so request metadata and return false for now
             var request = new Request({
                 throttle : true,
+                throttleByServer : true,
                 type : RequestType.TERRAIN
             });
             metadata.populateSubtree(x, y, level, request);

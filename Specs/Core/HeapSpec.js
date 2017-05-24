@@ -68,16 +68,16 @@ defineSuite([
 
     it('limited by maximum size', function() {
         var heap = new Heap(comparator);
-        heap.maximumSize = length / 2;
+        heap.maximumLength = length / 2;
         var pass = true;
         for (var i = 0; i < length; ++i) {
             heap.insert(Math.random());
             pass = pass && checkHeap(heap, comparator);
         }
         expect(pass).toBe(true);
-        expect(heap.length <= heap.maximumSize).toBe(true);
+        expect(heap.length <= heap.maximumLength).toBe(true);
         // allowed one extra slot for swapping
-        expect(heap.internalArray.length <= heap.maximumSize + 1).toBe(true);
+        expect(heap.internalArray.length <= heap.maximumLength + 1).toBe(true);
     });
 
     it('pops in sorted order', function() {

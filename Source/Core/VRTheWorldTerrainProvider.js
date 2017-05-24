@@ -5,6 +5,7 @@ define([
         './defaultValue',
         './defined',
         './defineProperties',
+        './deprecationWarning',
         './DeveloperError',
         './Ellipsoid',
         './Event',
@@ -25,6 +26,7 @@ define([
         defaultValue,
         defined,
         defineProperties,
+        deprecationWarning,
         DeveloperError,
         Ellipsoid,
         Event,
@@ -278,10 +280,11 @@ define([
             url = proxy.getURL(url);
         }
 
-        // TODO - remove later, this handles the deprecated throttleRequests parameter
         if (typeof request === 'boolean') {
+            deprecationWarning('throttleRequests', 'The throttleRequest parameter for requestTileGeometry was deprecated in Cesium 1.35.  It will be removed in 1.36.');
             request = new Request({
                 throttle : request,
+                throttleByServer : request,
                 type : RequestType.TERRAIN
             });
         }

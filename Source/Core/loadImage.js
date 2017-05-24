@@ -4,6 +4,7 @@ define([
         './Check',
         './defaultValue',
         './defined',
+        './deprecationWarning',
         './DeveloperError',
         './isCrossOriginUrl',
         './isDataUri',
@@ -15,6 +16,7 @@ define([
         Check,
         defaultValue,
         defined,
+        deprecationWarning,
         DeveloperError,
         isCrossOriginUrl,
         isDataUri,
@@ -29,12 +31,12 @@ define([
      *
      * @exports loadImage
      *
-     * @param {String|Promise.<String>} url The source of the image, or a promise for the URL.
+     * @param {String} url The source URL of the image.
      * @param {Boolean} [allowCrossOrigin=true] Whether to request the image using Cross-Origin
      *        Resource Sharing (CORS).  CORS is only actually used if the image URL is actually cross-origin.
      *        Data URIs are never requested using CORS.
      * @param {Request} [request] The request object.
-     * @returns {Promise.<Image>} a promise that will resolve to the requested data when loaded.
+     * @returns {Promise.<Image>|undefined} a promise that will resolve to the requested data when loaded. Returns <code>undefined</code> if <code>request.throttle</code> is <code>true</code> and the request does not have high enough priority.
      *
      *
      * @example
@@ -60,26 +62,37 @@ define([
 
         allowCrossOrigin = defaultValue(allowCrossOrigin, true);
 
-        // TODO : consider forcing url to be a string and not a promise to a string, across all load functions. Nothing should break since the url is only used to determine whether its a data uri or not, but this could change in the future.
+        if (typeof url !== 'string') {
+            console.log('AAABBB');
+            // Since this usage doesn't appear in the codebase, assume that options.request is also undefined and
+            // the request won't be throttled, meaning RequestScheduler.request will not return undefined.
+            deprecationWarning('url promise', 'url as a Promise is deprecated and will be removed in Cesium 1.36');
+            return url.then(function(url) {
+                return makeRequest(url, allowCrossOrigin, request);
+            });
+        }
+
+        return makeRequest(url, allowCrossOrigin, request);
+    }
+
+    function makeRequest(url, allowCrossOrigin, request) {
         request = defined(request) ? request : new Request();
         request.url = url;
         request.requestFunction = function() {
-            return when(url, function(url) {
-                var crossOrigin;
+            var crossOrigin;
 
-                // data URIs can't have allowCrossOrigin set.
-                if (isDataUri(url) || !allowCrossOrigin) {
-                    crossOrigin = false;
-                } else {
-                    crossOrigin = isCrossOriginUrl(url);
-                }
+            // data URIs can't have allowCrossOrigin set.
+            if (isDataUri(url) || !allowCrossOrigin) {
+                crossOrigin = false;
+            } else {
+                crossOrigin = isCrossOriginUrl(url);
+            }
 
-                var deferred = when.defer();
+            var deferred = when.defer();
 
-                loadImage.createImage(url, crossOrigin, deferred);
+            loadImage.createImage(url, crossOrigin, deferred);
 
-                return deferred.promise;
-            });
+            return deferred.promise;
         };
 
         return RequestScheduler.request(request);

@@ -1,8 +1,8 @@
 /*global define*/
 define([
-        './defined'
+        './Check'
     ], function(
-        defined) {
+        Check) {
     'use strict';
 
     var blobUriRegex = /^blob:/i;
@@ -18,11 +18,11 @@ define([
      * @private
      */
     function isBlobUri(uri) {
-        if (defined(uri)) {
-            return blobUriRegex.test(uri);
-        }
+        //>>includeStart('debug', pragmas.debug);
+        Check.typeOf.object('uri', uri);
+        //>>includeEnd('debug');
 
-        return false;
+        return blobUriRegex.test(uri);
     }
 
     return isBlobUri;

@@ -7,6 +7,7 @@ define([
         './isBlobUri',
         './isDataUri',
         './RequestState',
+        '../ThirdParty/Uri',
         '../ThirdParty/when'
     ], function(
         Check,
@@ -16,6 +17,7 @@ define([
         isBlobUri,
         isDataUri,
         RequestState,
+        Uri,
         when) {
     'use strict';
 
@@ -37,6 +39,13 @@ define([
     RequestScheduler.maximumRequests = 50;
 
     /**
+     * The maximum number of simultaneous active requests per server. Un-throttled requests do not observe this limit.
+     * @type {Number}
+     * @default 50
+     */
+    RequestScheduler.maximumRequestsPerServer = 6;
+
+    /**
      * The maximum size of the priority heap. This limits the number of requests that are sorted by priority. Only applies to requests that are not yet active.
      * @type {Number}
      * @default 20
@@ -48,7 +57,7 @@ define([
      * @type {Boolean}
      * @default true
      */
-    RequestScheduler.throttle = false;
+    RequestScheduler.debugThrottle = true;
 
     /**
      * When true, log statistics to the console every frame
@@ -58,10 +67,6 @@ define([
     RequestScheduler.debugShowStatistics = false;
 
     function sortRequests(a, b) {
-        // Sort requests by higher screen space error and then closer distance
-        if (a.screenSpaceError !== b.screenSpaceError) {
-            return b.screenSpaceError - a.screenSpaceError;
-        }
         return a.distance - b.distance;
     }
 
@@ -70,13 +75,44 @@ define([
         numberOfActiveRequests : 0,
         numberOfCancelledRequests : 0,
         numberOfCancelledActiveRequests : 0,
-        numberOfFailedRequests : 0
+        numberOfFailedRequests : 0,
+        numberOfActiveRequestsEver : 0
     };
 
     var requestHeap = new Heap(sortRequests);
-    requestHeap.maximumSize = RequestScheduler.priorityHeapSize;
+    requestHeap.maximumLength = RequestScheduler.priorityHeapSize;
     requestHeap.reserve(RequestScheduler.priorityHeapSize);
     var activeRequests = [];
+
+    var numberOfActiveRequestsByServer = {};
+
+    var pageUri = typeof document !== 'undefined' ? new Uri(document.location.href) : new Uri();
+
+    /**
+     * Get the server name from a given url.
+     *
+     * @param {String} url The url.
+     * @returns {String} The server name.
+     */
+    RequestScheduler.getServer = function(url) {
+        //>>includeStart('debug', pragmas.debug);
+        Check.typeOf.string('url', url);
+        //>>includeEnd('debug');
+
+        var uri = new Uri(url).resolve(pageUri);
+        uri.normalize();
+        var serverName = uri.authority;
+        if (!/:/.test(serverName)) {
+            serverName = serverName + ':' + (uri.scheme === 'https' ? '443' : '80');
+        }
+
+        var length = numberOfActiveRequestsByServer[serverName];
+        if (!defined(length)) {
+            numberOfActiveRequestsByServer[serverName] = 0;
+        }
+
+        return serverName;
+    };
 
     RequestScheduler.clearForSpecs = function() {
         requestHeap.reserve(0);
@@ -86,7 +122,12 @@ define([
         }
         activeRequests.length = 0;
         clearStatistics();
+        // TODO : clear requestsByServer
     };
+
+    function serverHasOpenSlots(server) {
+        return numberOfActiveRequestsByServer[server] < RequestScheduler.maximumRequestsPerServer;
+    }
 
     function issueRequest(request) {
         if (request.state === RequestState.UNISSUED) {
@@ -96,21 +137,36 @@ define([
         return request.deferred.promise;
     }
 
-    function startRequest(request) {
+    function startRequest(request, passthrough) {
+        if (passthrough) {
+            // Data uri or blob uri should always succeed so make the request immediately and don't contribute to statistics.
+            request.state = RequestState.RECEIVED;
+            return request.requestFunction();
+        }
+
         var promise = issueRequest(request);
         request.state = RequestState.ACTIVE;
         activeRequests.push(request);
         ++statistics.numberOfActiveRequests;
+        ++statistics.numberOfActiveRequestsEver;
+
+        var server = request.server;
+        if (defined(server)) {
+            ++numberOfActiveRequestsByServer[server];
+        }
 
         request.requestFunction().then(function(results) {
-            request.state = RequestState.DONE;
-            --statistics.numberOfActiveRequests;
+            request.state = RequestState.RECEIVED;
             request.deferred.resolve(results);
         }).otherwise(function(error) {
-            request.state = RequestState.FAILED;
-            --statistics.numberOfActiveRequests;
             ++statistics.numberOfFailedRequests;
+            request.state = RequestState.FAILED;
             request.deferred.reject(error);
+        }).always(function() {
+            --statistics.numberOfActiveRequests;
+            if (defined(server)) {
+                --numberOfActiveRequestsByServer[server];
+            }
         });
 
         return promise;
@@ -122,6 +178,7 @@ define([
             ++statistics.numberOfCancelledActiveRequests;
             if (xhrAbortSupported && defined(request.xhr)) {
                 // TODO : make sure this doesn't trigger a failed promise, if so the deferred can be rejected first
+                // TODO : test this in a test
                 request.xhr.abort();
             }
         }
@@ -137,16 +194,18 @@ define([
     RequestScheduler.update = function() {
         var request;
 
-        // Loop over all active requests. Cancelled, failed, or done requests are removed from the array to make room for new requests.
+        // Loop over all active requests. Cancelled, failed, or received requests are removed from the array to make room for new requests.
         // If an active request is cancelled, its XMLHttpRequest will be aborted.
         var removeCount = 0;
         var activeLength = activeRequests.length;
         for (var i = 0; i < activeLength; ++i) {
             request = activeRequests[i];
             if (request.state === RequestState.CANCELLED) {
+                // Request was explicitly cancelled
                 cancelRequest(request);
             }
             if (request.state !== RequestState.ACTIVE) {
+                // Request is no longer active, remove from array
                 ++removeCount;
                 continue;
             }
@@ -163,15 +222,24 @@ define([
         // Get the number of open slots and fill with the highest priority requests.
         // Un-throttled requests are automatically added to activeRequests, so activeRequests.length may exceed maximumRequests
         var openSlots = Math.max(RequestScheduler.maximumRequests - activeRequests.length, 0);
-        var count = 0;
-        while (count < openSlots && requestHeap.length > 0) {
+        var filledSlots = 0;
+        while (filledSlots < openSlots && requestHeap.length > 0) {
+            // Loop until all open slots are filled or the heap becomes empty
             request = requestHeap.pop();
             if (request.state === RequestState.CANCELLED) {
+                // Request was explicitly cancelled
                 cancelRequest(request);
                 continue;
             }
+
+            if (request.throttleByServer && !serverHasOpenSlots(request.server)) {
+                // Open slots are available, but the request is throttled by its server. Cancel and try again later.
+                cancelRequest(request);
+                continue;
+            }
+
             startRequest(request);
-            ++count;
+            ++filledSlots;
         }
 
         updateStatistics();
@@ -190,13 +258,30 @@ define([
         Check.defined('request', request);
         //>>includeEnd('debug');
 
-        ++statistics.numberOfRequestsThisFrame;
+        ++statistics.numberOfAttemptedRequests;
 
-        if (!RequestScheduler.throttle || !request.throttle || isDataUri(request.url) || isBlobUri(request.url)) {
-            return startRequest(request);
+        var isDataOrBlobUri = isDataUri(request.url) || isBlobUri(request.url);
+        if (!isDataOrBlobUri && !defined(request.server)) {
+            request.server = RequestScheduler.getServer(request.url);
         }
 
+        if (!RequestScheduler.debugThrottle || !request.throttle || isDataOrBlobUri) {
+            return startRequest(request, isDataOrBlobUri);
+        }
+
+        if (activeRequests.length >= RequestScheduler.maximumRequests) {
+            // Active requests are saturated. Try again later.
+            return undefined;
+        }
+
+        if (request.throttleByServer && !serverHasOpenSlots(request.server)) {
+            // Server is saturated. Try again later.
+            return undefined;
+        }
+
+        // Insert into the priority heap and see if a request was bumped off
         var removedRequest = requestHeap.insert(request);
+
         if (defined(removedRequest)) {
             if (removedRequest === request) {
                 // Request does not have high enough priority to be issued
@@ -210,7 +295,7 @@ define([
     };
 
     function clearStatistics() {
-        statistics.numberOfRequestsThisFrame = 0;
+        statistics.numberOfAttemptedRequests = 0;
         statistics.numberOfCancelledRequests = 0;
         statistics.numberOfCancelledActiveRequests = 0;
     }
@@ -238,6 +323,15 @@ define([
 
         clearStatistics();
     }
+
+    /**
+     * Returns the statistics used by the request scheduler.
+     *
+     * @returns {Object} The statistics object.
+     */
+    RequestScheduler.getStatistics = function() {
+        return statistics;
+    };
 
     // TODO : this check may not be needed
     var xhrAbortSupported = (function() {

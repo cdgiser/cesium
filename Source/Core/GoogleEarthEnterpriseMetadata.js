@@ -329,6 +329,7 @@ define([
                     // Recursively call this in case we need multiple subtree requests
                     subtreeRequest = new Request({
                         throttle : request.throttle,
+                        throttleByServer : request.throttleByServer,
                         type : request.type,
                         distance : request.distance
                     });
@@ -358,6 +359,7 @@ define([
                 // Recursively call this in case we need multiple subtree requests
                 subtreeRequest = new Request({
                     throttle : request.throttle,
+                    throttleByServer : request.throttleByServer,
                     type : request.type,
                     distance : request.distance
                 });

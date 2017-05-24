@@ -708,6 +708,7 @@ define([
         function doRequest() {
             var request = new Request({
                 throttle : true,
+                throttleByServer : true,
                 type : RequestType.IMAGERY,
                 distance : distance
             });
